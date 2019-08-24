@@ -76,7 +76,7 @@ impl std::str::FromStr for UntypedId {
             .decode_mut(src.as_bytes(), &mut bytes)
             .map_err(|e| failure::format_err!("{:?}", e))?;
 
-        return Ok(Self::from_bytes(&bytes[..]));
+        Ok(Self::from_bytes(&bytes[..]))
     }
 }
 

@@ -120,7 +120,7 @@ impl<T: Entity> std::str::FromStr for Id<T> {
             .decode_mut(b64.as_bytes(), &mut bytes)
             .map_err(|e| failure::format_err!("{:?}", e))?;
 
-        return Ok(Self::from_bytes(&bytes[..]));
+        Ok(Self::from_bytes(&bytes[..]))
     }
 }
 

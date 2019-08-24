@@ -1,0 +1,29 @@
+[listener]
+addr = "127.0.0.1:3030"
+
+[postgres]
+url="postgresql://cez@127.0.0.1:5432/"
+min_idle = 1
+max_size = 4
+
+[postgres.idle_timeout]
+secs = 1
+nanos = 0
+
+[postgres.connection_timeout]
+secs = 1
+nanos = 0
+
+[env_logger]
+level= "warn"
+timestamp_nanos = true
+
+[env_logger.modules]
+tests= "trace"
+actix= "info"
+actix_web= "info"
+rustbucks= "trace"
+postgres= "debug"
+cargo= "error"
+rustc_metadata= "error"
+html5ever= "error"

@@ -29,7 +29,7 @@ pub trait Entity {
     const PREFIX: &'static str;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IdGen {}
 
 const DIVIDER: &str = ".";
@@ -46,7 +46,7 @@ impl<T> Id<T> {
 
 impl IdGen {
     pub fn new() -> Self {
-        IdGen {}
+        Default::default()
     }
 
     pub fn generate<T>(&self) -> Id<T> {

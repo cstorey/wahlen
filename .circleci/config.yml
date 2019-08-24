@@ -1,19 +1,54 @@
+# Borrowed from https://github.com/sfackler/rust-postgres/blob/04bd98e7edb238511661b311c725a176012bca6a/.circleci/config.yml
+# Used under MIT license.
+
 version: 2
 jobs:
   build:
     docker:
     - environment:
-        POSTGRES_URL: postgres://circleci@localhost:5432/circleci-rustbucks
+        POSTGRES_URL: postgres://circleci@localhost:5432/testdb
         RUSTFLAGS: -D warnings
-      image: circleci/rust:1
+      image: circleci/rust:1-browsers
     - environment:
-        POSTGRES_DB: circleci-rustbucks
+        POSTGRES_DB: testdb
         POSTGRES_USER: circleci
       image: postgres:11.2-alpine
-
     steps:
-      - checkout
-
-      - run:
-          name: Greeting
-          command: echo Hello, world.
+    - checkout
+    - run: rustup component add clippy
+    - restore_cache:
+        name: "Restore registry index"
+        key: registry
+    - run: cargo generate-lockfile
+    - save_cache:
+        name: "Save registry index"
+        key: registry-{{ .BuildNum }}
+        paths:
+        - /usr/local/cargo/registry/index
+    - run: rustc --version | tee ~/rust-version
+    - restore_cache:
+        name: "Restore registry cache"
+        keys:
+        - registry-cache-{{ checksum "Cargo.lock" }}
+    - restore_cache:
+        name: "Restore target"
+        keys:
+        - target-{{ checksum "~/rust-version" }}-{{ checksum "Cargo.lock" }}
+    - run: cargo clean -p infra
+    - run: cargo clean -p wahlen
+    - run: cargo build --all --tests --locked
+    - run: cargo clippy
+    - save_cache:
+        name: "Save registry cache"
+        key: registry-cache-{{ checksum "Cargo.lock" }}-{{ .BuildNum }}
+        paths:
+        - /usr/local/cargo/registry/cache
+    - save_cache:
+        name: "Save target"
+        key: target-{{ checksum "~/rust-version" }}-{{ checksum "Cargo.lock" }}
+        paths:
+        - target
+    - run:
+        name: Waiting for Postgres to be ready
+        command: ./.circleci/await-postgres
+    - run: env RUST_BACKTRACE=1 cargo test --locked

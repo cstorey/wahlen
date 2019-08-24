@@ -1,0 +1,19 @@
+version: 2
+jobs:
+  build:
+    docker:
+    - environment:
+        POSTGRES_URL: postgres://circleci@localhost:5432/circleci-rustbucks
+        RUSTFLAGS: -D warnings
+      image: circleci/rust:1
+    - environment:
+        POSTGRES_DB: circleci-rustbucks
+        POSTGRES_USER: circleci
+      image: postgres:11.2-alpine
+
+    steps:
+      - checkout
+
+      - run:
+          name: Greeting
+          command: echo Hello, world.

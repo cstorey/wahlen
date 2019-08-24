@@ -289,7 +289,7 @@ mod test {
     #[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Deserialize, Serialize)]
     struct AMessage;
     impl Entity for ADocument {
-        const PREFIX: &str = "adocument";
+        const PREFIX: &'static str = "adocument";
     }
     impl HasMeta<ADocument> for ADocument {
         fn meta(&self) -> &DocMeta<Self> {
@@ -523,7 +523,7 @@ mod test {
     }
 
     impl Entity for ChattyDoc {
-        const PREFIX: &str = "chatty";
+        const PREFIX: &'static str = "chatty";
     }
     impl HasMeta<ChattyDoc> for ChattyDoc {
         fn meta(&self) -> &DocMeta<Self> {

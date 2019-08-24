@@ -30,15 +30,15 @@ pub struct DocumentConnectionManager(PostgresConnectionManager);
 
 struct Jsonb<T>(T);
 
-const SETUP_SQL: &'static str = include_str!("persistence.sql");
-const LOAD_SQL: &'static str = "SELECT body FROM documents WHERE id = $1";
+const SETUP_SQL: &str = include_str!("persistence.sql");
+const LOAD_SQL: &str = "SELECT body FROM documents WHERE id = $1";
 #[cfg(test)]
-const LOAD_NEXT_SQL: &'static str = "SELECT body
+const LOAD_NEXT_SQL: &str = "SELECT body
                                      FROM documents
                                      WHERE jsonb_array_length(body -> '_outgoing') > 0
                                      LIMIT 1
 ";
-const INSERT_SQL: &'static str = "WITH a as (
+const INSERT_SQL: &str = "WITH a as (
                                 SELECT $1::jsonb as body
                                 )
                                 INSERT INTO documents AS d (id, body)
@@ -47,7 +47,7 @@ const INSERT_SQL: &'static str = "WITH a as (
                                 WHERE NOT EXISTS (
                                     SELECT 1 FROM documents d where d.id = a.body ->> '_id'
                                 )";
-const UPDATE_SQL: &'static str = "WITH a as (
+const UPDATE_SQL: &str = "WITH a as (
                                     SELECT $1::jsonb as body, $2::jsonb as expected_version
                                     )
                                     UPDATE documents AS d
@@ -289,7 +289,7 @@ mod test {
     #[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Deserialize, Serialize)]
     struct AMessage;
     impl Entity for ADocument {
-        const PREFIX: &'static str = "adocument";
+        const PREFIX: &str = "adocument";
     }
     impl HasMeta<ADocument> for ADocument {
         fn meta(&self) -> &DocMeta<Self> {
@@ -523,7 +523,7 @@ mod test {
     }
 
     impl Entity for ChattyDoc {
-        const PREFIX: &'static str = "chatty";
+        const PREFIX: &str = "chatty";
     }
     impl HasMeta<ChattyDoc> for ChattyDoc {
         fn meta(&self) -> &DocMeta<Self> {

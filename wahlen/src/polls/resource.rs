@@ -32,14 +32,18 @@ impl<S: Clone + Storage + 'static> PollsResource<Polls<S>> {
     }
 }
 
-impl<I: Clone + 'static> PollsResource<I>
-where
-    I: GenService<CreatePoll, Resp = Id<Poll>>,
-{
+impl<I: Clone + 'static> PollsResource<I> {
     pub fn from_inner(inner: I) -> Self {
         let inner = Arc::new(Mutex::new(inner));
         PollsResource { inner }
     }
+}
+
+impl<I: Clone + 'static> PollsResource<I>
+where
+    I: GenService<CreatePoll, Resp = Id<Poll>>,
+    I: GenService<Identified<TallyVotes>, Resp = VoteSummary>,
+{
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         let scope = web::scope(PREFIX)
             .service(self.create_poll())
@@ -100,6 +104,8 @@ mod tests {
 
     #[test]
     fn redirect_on_new() -> Fallible<()> {
+        env_logger::try_init().unwrap_or_default();
+
         #[derive(Clone)]
         struct Stub;
         impl GenService<CreatePoll> for Stub {
@@ -110,9 +116,16 @@ mod tests {
                 Ok(Id::hashed(name))
             }
         }
+
         let resource = PollsResource::from_inner(Stub);
 
-        let mut app = test::init_service(App::new().configure(|c| resource.configure(c)));
+        let mut app = test::init_service(App::new().configure(|cfg| {
+            cfg.service(
+                web::scope(PREFIX)
+                    .service(resource.create_poll())
+                    .service(web::resource("/{poll_id}").name("poll")),
+            );
+        }));
 
         let name = "Bob";
         let form = CreatePollForm { name: name.into() };

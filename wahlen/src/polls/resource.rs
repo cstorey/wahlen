@@ -2,6 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use failure::Fallible;
+use weft::WeftRenderable;
+use weft_actix::WeftResponse;
 
 use super::*;
 const PREFIX: &str = "/polls";
@@ -15,6 +17,10 @@ pub struct PollsResource<I> {
 struct CreatePollForm {
     name: String,
 }
+
+#[derive(Debug, WeftRenderable)]
+#[template(path = "src/polls/poll.html")]
+struct PollView;
 
 impl<S: Clone + Storage + 'static> PollsResource<Polls<S>> {
     pub fn new(idgen: IdGen, store: S) -> Fallible<Self> {
@@ -34,8 +40,12 @@ where
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         cfg.data(self.clone());
         let scope = web::scope(PREFIX)
-            .service({ web::resource("/").route(web::post().to(Self::create_poll)) })
-            .service({ web::resource("/{poll_id}").name("poll").route(web::get()) });
+            .service({ web::resource("").route(web::post().to(Self::create_poll)) })
+            .service({
+                web::resource("/{poll_id}")
+                    .name("poll")
+                    .route(web::get().to(Self::show_poll))
+            });
 
         cfg.service(scope);
     }
@@ -55,6 +65,10 @@ where
         Ok(HttpResponse::SeeOther()
             .header("location", uri.to_string())
             .finish())
+    }
+
+    fn show_poll(me: web::Data<Self>) -> Result<impl Responder, actix_web::Error> {
+        Ok(WeftResponse::of(PollView))
     }
 }
 
@@ -89,7 +103,7 @@ mod tests {
         let form = CreatePollForm { name: name.into() };
 
         let req = test::TestRequest::post()
-            .uri(&format!("{}/", PREFIX))
+            .uri(&PREFIX)
             .set_payload(serde_urlencoded::to_string(form)?)
             .header("content-type", "application/x-www-form-urlencoded")
             .to_request();

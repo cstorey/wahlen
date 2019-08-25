@@ -1,5 +1,5 @@
 use actix_web::{web, HttpRequest, Responder};
-use failure::Error;
+use failure::{Error, ResultExt};
 use log::*;
 use r2d2::Pool;
 use weft_actix::WeftResponse;
@@ -26,6 +26,8 @@ pub struct Wahlen {
 impl Wahlen {
     pub fn new(config: &config::Config) -> Result<Self, Error> {
         let store = config.postgres.build()?;
+
+        store.get()?.setup().context("Setup Db")?;
         let idgen = IdGen::new();
         let polls = polls::PollsResource::new(idgen, store)?;
 

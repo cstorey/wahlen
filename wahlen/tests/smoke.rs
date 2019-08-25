@@ -4,6 +4,7 @@ use std::str::FromStr;
 
 use actix_http::HttpService;
 use actix_http_test::{TestServer, TestServerRuntime};
+use actix_web::middleware::Logger;
 use actix_web::App;
 use failure::{Fallible, ResultExt};
 use maplit::*;
@@ -19,7 +20,7 @@ struct PollsDriver {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
 fn canary() -> Fallible<()> {
     let mut polls = PollsDriver::new()?;
 
@@ -122,7 +123,11 @@ impl PollsDriver {
         let app = wahlen::Wahlen::new(&config).expect("new rustbucks");
 
         let srv = TestServer::new(move || {
-            HttpService::new(App::new().configure(|cfg| app.configure(cfg)))
+            HttpService::new(
+                App::new()
+                    .wrap(Logger::default())
+                    .configure(|cfg| app.configure(cfg)),
+            )
         });
 
         let config = chrome::Config::default();
@@ -134,9 +139,13 @@ impl PollsDriver {
 impl GenService<CreatePoll> for PollsDriver {
     type Resp = Id<Poll>;
     fn call(&mut self, req: CreatePoll) -> Fallible<Self::Resp> {
+        env_logger::try_init().unwrap_or_default();
+
         let url = format!("http://{}/", self.srv.addr());
         self.browser.visit(&url)?;
 
+        eprintln!("Visited: {}", url);
+        std::thread::sleep_ms(1000);
         let meta = self.browser.find_element(&By::css("*[data-page]"))?;
         let page_name = self
             .browser
@@ -144,10 +153,13 @@ impl GenService<CreatePoll> for PollsDriver {
             .ok_or_else(|| failure::err_msg("Expected 'data-page' atttribute"))?;
         assert_eq!(page_name, "top");
 
+        eprintln!("Creating poll");
         let button = self
             .browser
             .find_element(&By::css("*[data-job='create-poll']"))?;
         self.browser.click(&button)?;
+        eprintln!("Clicked button");
+        std::thread::sleep_ms(1000);
 
         let meta = self.browser.find_element(&By::css("*[data-page]"))?;
         let page_name = self

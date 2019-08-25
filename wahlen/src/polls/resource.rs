@@ -39,10 +39,9 @@ where
         PollsResource { inner }
     }
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
-        cfg.data(self.clone());
         let scope = web::scope(PREFIX)
-            .service(Self::create_poll())
-            .service(Self::show_poll());
+            .service(self.create_poll())
+            .service(self.show_poll());
 
         cfg.service(scope);
     }
@@ -52,9 +51,9 @@ impl<I: Clone + 'static> PollsResource<I>
 where
     I: GenService<CreatePoll, Resp = Id<Poll>>,
 {
-    fn create_poll() -> impl HttpServiceFactory + 'static {
-        let handler = |(me, form, req): (
-            web::Data<PollsResource<I>>,
+    fn create_poll(&self) -> impl HttpServiceFactory + 'static {
+        let me = self.clone();
+        let handler = move |(form, req): (
             web::Form<CreatePollForm>,
             HttpRequest,
         )|
@@ -75,8 +74,8 @@ where
 }
 
 impl<I: Clone + 'static> PollsResource<I> {
-    fn show_poll() -> impl HttpServiceFactory + 'static {
-        let handler = |_me: web::Data<Self>| -> Result<_, actix_web::Error> {
+    fn show_poll(&self) -> impl HttpServiceFactory + 'static {
+        let handler = move |_me: web::Data<Self>| -> Result<_, actix_web::Error> {
             Ok(WeftResponse::of(PollView))
         };
 

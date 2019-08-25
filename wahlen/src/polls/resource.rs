@@ -40,11 +40,9 @@ where
     }
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         cfg.data(self.clone());
-        let scope = web::scope(PREFIX).service(Self::create_poll()).service({
-            web::resource("/{poll_id}")
-                .name("poll")
-                .route(web::get().to(Self::show_poll))
-        });
+        let scope = web::scope(PREFIX)
+            .service(Self::create_poll())
+            .service(Self::show_poll());
 
         cfg.service(scope);
     }
@@ -69,8 +67,14 @@ where
         web::resource("").route(web::post().to(handler::<I>))
     }
 
-    fn show_poll(me: web::Data<Self>) -> Result<impl Responder, actix_web::Error> {
-        Ok(WeftResponse::of(PollView))
+    fn show_poll() -> impl HttpServiceFactory + 'static {
+        fn handler<Me>(me: web::Data<Me>) -> Result<impl Responder, actix_web::Error> {
+            Ok(WeftResponse::of(PollView))
+        }
+
+        web::resource("/{poll_id}")
+            .name("poll")
+            .route(web::get().to(handler::<Self>))
     }
 }
 

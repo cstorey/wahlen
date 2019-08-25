@@ -86,22 +86,30 @@ impl<S: Storage> GenService<CreatePoll> for Polls<S> {
 impl<S: Storage> GenService<RecordVote> for Polls<S> {
     type Resp = ();
     fn call(&mut self, req: RecordVote) -> Fallible<Self::Resp> {
-        let RecordVote {
-            poll_id,
-            subject_id,
-            choice,
-        } = req;
         let mut poll = self
             .store
-            .load(&poll_id)?
-            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
+            .load(&req.poll_id)?
+            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", req.poll_id)))?;
 
-        poll.votes
+        poll.call(req)?;
+
+        self.store.save(&mut poll)?;
+
+        Ok(())
+    }
+}
+
+impl GenService<RecordVote> for Poll {
+    type Resp = ();
+    fn call(&mut self, req: RecordVote) -> Fallible<Self::Resp> {
+        let RecordVote {
+            subject_id, choice, ..
+        } = req;
+
+        self.votes
             .entry(subject_id)
             .and_modify(|v| *v = choice.clone())
             .or_insert_with(|| choice.clone());
-
-        self.store.save(&mut poll)?;
 
         Ok(())
     }
@@ -111,13 +119,21 @@ impl<S: Storage> GenService<TallyVotes> for Polls<S> {
     type Resp = VoteSummary;
     fn call(&mut self, req: TallyVotes) -> Fallible<Self::Resp> {
         let TallyVotes { poll_id } = req;
-        let poll = self
+        let mut poll = self
             .store
-            .load(&poll_id)?
-            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
+            .load(&req.poll_id)?
+            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", req.poll_id)))?;
 
+        let tally = poll.call(req)?;
+
+        Ok(tally)
+    }
+}
+impl GenService<TallyVotes> for Poll {
+    type Resp = VoteSummary;
+    fn call(&mut self, req: TallyVotes) -> Fallible<Self::Resp> {
         let mut tally = HashMap::new();
-        for v in poll.votes.values().cloned() {
+        for v in self.votes.values().cloned() {
             *tally.entry(v).or_insert(0) += 1;
         }
 

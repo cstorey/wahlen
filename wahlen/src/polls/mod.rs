@@ -19,9 +19,11 @@ pub struct Polls<S> {
 pub struct CreatePoll {
     name: String,
 }
+
 #[derive(Debug)]
 pub struct RecordVote {
     poll_id: Id<Poll>,
+    subject_id: Id<Subject>,
     choice: String,
 }
 #[derive(Debug)]
@@ -37,7 +39,7 @@ pub struct Poll {
     #[serde(flatten)]
     meta: DocMeta<Poll>,
     name: String,
-    votes: HashMap<String, u64>,
+    votes: HashMap<Id<Subject>, String>,
 }
 
 impl Entity for Poll {
@@ -51,6 +53,12 @@ impl HasMeta for Poll {
     fn meta_mut(&mut self) -> &mut DocMeta<Self> {
         &mut self.meta
     }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Subject;
+
+impl Entity for Subject {
+    const PREFIX: &'static str = "subject";
 }
 
 pub trait GenService<Req> {
@@ -78,13 +86,21 @@ impl<S: Storage> GenService<CreatePoll> for Polls<S> {
 impl<S: Storage> GenService<RecordVote> for Polls<S> {
     type Resp = ();
     fn call(&self, req: RecordVote) -> Fallible<Self::Resp> {
-        let RecordVote { poll_id, choice } = req;
+        let RecordVote {
+            poll_id,
+            subject_id,
+            choice,
+        } = req;
         let mut poll = self
             .store
             .load(&poll_id)?
             .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
 
-        *poll.votes.entry(choice).or_insert(0) += 1;
+        poll.votes
+            .entry(subject_id)
+            .and_modify(|v| *v = choice.clone())
+            .or_insert_with(|| choice.clone());
+
         self.store.save(&mut poll)?;
 
         Ok(())
@@ -99,7 +115,10 @@ impl<S: Storage> GenService<TallyVotes> for Polls<S> {
             .load(&poll_id)?
             .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
 
-        let tally = poll.votes;
+        let mut tally = HashMap::new();
+        for v in poll.votes.values().cloned() {
+            *tally.entry(v).or_insert(0) += 1;
+        }
 
         Ok(VoteSummary { tally })
     }

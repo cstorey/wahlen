@@ -63,7 +63,7 @@ impl Entity for Subject {
 
 pub trait GenService<Req> {
     type Resp;
-    fn call(&self, req: Req) -> Fallible<Self::Resp>;
+    fn call(&mut self, req: Req) -> Fallible<Self::Resp>;
 }
 
 impl<S> Polls<S> {
@@ -74,7 +74,7 @@ impl<S> Polls<S> {
 
 impl<S: Storage> GenService<CreatePoll> for Polls<S> {
     type Resp = Id<Poll>;
-    fn call(&self, req: CreatePoll) -> Fallible<Self::Resp> {
+    fn call(&mut self, req: CreatePoll) -> Fallible<Self::Resp> {
         let CreatePoll { name } = req;
         let meta = DocMeta::new_with_id(self.idgen.generate());
         let votes = HashMap::new();
@@ -85,7 +85,7 @@ impl<S: Storage> GenService<CreatePoll> for Polls<S> {
 }
 impl<S: Storage> GenService<RecordVote> for Polls<S> {
     type Resp = ();
-    fn call(&self, req: RecordVote) -> Fallible<Self::Resp> {
+    fn call(&mut self, req: RecordVote) -> Fallible<Self::Resp> {
         let RecordVote {
             poll_id,
             subject_id,
@@ -106,9 +106,10 @@ impl<S: Storage> GenService<RecordVote> for Polls<S> {
         Ok(())
     }
 }
+
 impl<S: Storage> GenService<TallyVotes> for Polls<S> {
     type Resp = VoteSummary;
-    fn call(&self, req: TallyVotes) -> Fallible<Self::Resp> {
+    fn call(&mut self, req: TallyVotes) -> Fallible<Self::Resp> {
         let TallyVotes { poll_id } = req;
         let poll = self
             .store

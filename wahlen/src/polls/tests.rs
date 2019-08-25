@@ -10,7 +10,7 @@ use crate::testing::*;
 fn canary() -> Fallible<()> {
     let store = pool("canary")?;
     let idgen = IdGen::new();
-    let polls = Polls::new(idgen.clone(), store);
+    let mut polls = Polls::new(idgen.clone(), store);
 
     let poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
@@ -33,7 +33,7 @@ fn canary() -> Fallible<()> {
 fn two_folks_can_vote() -> Fallible<()> {
     let store = pool("two_folks_can_vote")?;
     let idgen = IdGen::new();
-    let polls = Polls::new(idgen.clone(), store);
+    let mut polls = Polls::new(idgen.clone(), store);
 
     let poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
@@ -64,7 +64,7 @@ fn two_folks_can_vote() -> Fallible<()> {
 fn two_voting_twice_changes_vote() -> Fallible<()> {
     let store = pool("two_voting_twice_changes_vote")?;
     let idgen = IdGen::new();
-    let polls = Polls::new(idgen.clone(), store);
+    let mut polls = Polls::new(idgen.clone(), store);
 
     let poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),

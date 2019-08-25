@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use actix_web::dev::HttpServiceFactory;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use failure::Fallible;
 use weft::WeftRenderable;
 use weft_actix::WeftResponse;
@@ -53,11 +53,12 @@ where
     I: GenService<CreatePoll, Resp = Id<Poll>>,
 {
     fn create_poll() -> impl HttpServiceFactory + 'static {
-        fn handler<I: GenService<CreatePoll, Resp = Id<Poll>>>(
-            me: web::Data<PollsResource<I>>,
-            form: web::Form<CreatePollForm>,
-            req: HttpRequest,
-        ) -> Result<impl Responder, actix_web::Error> {
+        let handler = |(me, form, req): (
+            web::Data<PollsResource<I>>,
+            web::Form<CreatePollForm>,
+            HttpRequest,
+        )|
+         -> Result<_, actix_web::Error> {
             let mut inner = me.inner.lock().expect("unlock");
             let result: Id<Poll> = inner.call(CreatePoll {
                 name: form.name.clone(),
@@ -68,20 +69,20 @@ where
             Ok(HttpResponse::SeeOther()
                 .header("location", uri.to_string())
                 .finish())
-        }
-        web::resource("").route(web::post().to(handler::<I>))
+        };
+        web::resource("").route(web::post().to(handler))
     }
 }
 
 impl<I: Clone + 'static> PollsResource<I> {
     fn show_poll() -> impl HttpServiceFactory + 'static {
-        fn handler<Me>(me: web::Data<Me>) -> Result<impl Responder, actix_web::Error> {
+        let handler = |_me: web::Data<Self>| -> Result<_, actix_web::Error> {
             Ok(WeftResponse::of(PollView))
-        }
+        };
 
         web::resource("/{poll_id}")
             .name("poll")
-            .route(web::get().to(handler::<Self>))
+            .route(web::get().to(handler))
     }
 }
 

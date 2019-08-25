@@ -31,3 +31,11 @@ optional = false
 
 [dependencies.weft-actix]
 git = "https://github.com/cstorey/weft.git"
+
+[dev-dependencies]
+sulfur = { git = "https://github.com/cstorey/sulfur.git" }
+failure = "0.1.5"
+actix-http-test = "0.2.4"
+actix-http = "0.2.9"
+url = "2.1.0"
+serde_urlencoded = "0.6.1"

@@ -8,8 +8,11 @@ use infra::ids::Entity;
 use infra::ids::{Id, IdGen};
 use infra::persistence::Storage;
 
+mod resource;
 mod tests;
+pub use resource::PollsResource;
 
+#[derive(Debug, Clone)]
 pub struct Polls<S> {
     store: S,
     idgen: IdGen,
@@ -17,22 +20,22 @@ pub struct Polls<S> {
 
 #[derive(Debug)]
 pub struct CreatePoll {
-    name: String,
+    pub name: String,
 }
 
 #[derive(Debug)]
-pub struct Identified<Req>(Id<Poll>, Req);
+pub struct Identified<Req>(pub Id<Poll>, pub Req);
 
 #[derive(Debug)]
 pub struct RecordVote {
-    subject_id: Id<Subject>,
-    choice: String,
+    pub subject_id: Id<Subject>,
+    pub choice: String,
 }
 #[derive(Debug)]
 pub struct TallyVotes;
 
 pub struct VoteSummary {
-    tally: HashMap<String, u64>,
+    pub tally: HashMap<String, u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,6 +58,7 @@ impl HasMeta for Poll {
         &mut self.meta
     }
 }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Subject;
 

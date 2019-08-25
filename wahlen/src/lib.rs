@@ -1,8 +1,12 @@
 use actix_web::{web, HttpRequest, Responder};
 use failure::Error;
 use log::*;
+use r2d2::Pool;
 use weft_actix::WeftResponse;
 use weft_derive::WeftRenderable;
+
+use infra::ids::IdGen;
+use infra::persistence::DocumentConnectionManager;
 
 pub mod config;
 pub mod polls;
@@ -15,17 +19,22 @@ pub struct WithTemplate<C> {
 }
 
 #[derive(Clone)]
-pub struct Wahlen {}
+pub struct Wahlen {
+    polls: polls::PollsResource<polls::Polls<Pool<DocumentConnectionManager>>>,
+}
 
 impl Wahlen {
     pub fn new(config: &config::Config) -> Result<Self, Error> {
-        let _ = config.postgres.build()?;
+        let store = config.postgres.build()?;
+        let idgen = IdGen::new();
+        let polls = polls::PollsResource::new(idgen, store)?;
 
-        Ok(Wahlen {})
+        Ok(Wahlen { polls })
     }
 
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         cfg.service(web::resource("/").route(web::get().to_async(index)));
+        self.polls.configure(cfg);
     }
 }
 

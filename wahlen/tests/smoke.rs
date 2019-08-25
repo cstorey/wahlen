@@ -11,6 +11,7 @@ use sulfur::*;
 use sulfur::{chrome, By};
 
 use infra::ids::*;
+use wahlen::gen_service::*;
 use wahlen::polls::*;
 
 struct PollsDriver {

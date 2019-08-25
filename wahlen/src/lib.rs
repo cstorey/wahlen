@@ -9,6 +9,7 @@ use infra::ids::IdGen;
 use infra::persistence::DocumentConnectionManager;
 
 pub mod config;
+pub mod gen_service;
 pub mod polls;
 mod testing;
 

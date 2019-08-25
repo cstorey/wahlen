@@ -8,6 +8,8 @@ use infra::ids::Entity;
 use infra::ids::{Id, IdGen};
 use infra::persistence::Storage;
 
+use crate::gen_service::*;
+
 mod resource;
 mod tests;
 pub use resource::PollsResource;
@@ -65,11 +67,6 @@ pub struct Subject;
 
 impl Entity for Subject {
     const PREFIX: &'static str = "subject";
-}
-
-pub trait GenService<Req> {
-    type Resp;
-    fn call(&mut self, req: Req) -> Fallible<Self::Resp>;
 }
 
 impl<S> Polls<S> {

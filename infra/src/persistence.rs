@@ -188,6 +188,22 @@ impl<T: serde::Serialize> fmt::Debug for Jsonb<T> {
     }
 }
 
+impl<M> Storage for r2d2::Pool<M>
+where
+    M: r2d2::ManageConnection,
+    M::Connection: Storage,
+{
+    fn load<D: DeserializeOwned + Entity>(&self, id: &Id<D>) -> Result<Option<D>, Error> {
+        let conn = self.get()?;
+        conn.load(id)
+    }
+
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
+        let conn = self.get()?;
+        conn.save(document)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -630,6 +646,25 @@ mod test {
 
         assert_eq!(doc.meta.id, some_doc.meta.id);
 
+        Ok(())
+    }
+
+    #[test]
+    fn save_load_via_pool() -> Result<(), Error> {
+        env_logger::try_init().unwrap_or_default();
+        let pool = pool("save_load_via_pool")?;
+        let some_doc = ADocument {
+            meta: DocMeta::new_with_id(IDGEN.generate()),
+            name: "Dave".to_string(),
+        };
+
+        info!("Original document: {:?}", some_doc);
+
+        pool.save(&mut some_doc.clone()).expect("save");
+        let loaded = pool.load(&some_doc.meta.id).expect("load");
+        info!("Loaded document: {:?}", loaded);
+
+        assert_eq!(Some(some_doc.name), loaded.map(|d| d.name));
         Ok(())
     }
 

@@ -21,15 +21,16 @@ pub struct CreatePoll {
 }
 
 #[derive(Debug)]
+pub struct Identified<Req>(Id<Poll>, Req);
+
+#[derive(Debug)]
 pub struct RecordVote {
-    poll_id: Id<Poll>,
     subject_id: Id<Subject>,
     choice: String,
 }
 #[derive(Debug)]
-pub struct TallyVotes {
-    poll_id: Id<Poll>,
-}
+pub struct TallyVotes;
+
 pub struct VoteSummary {
     tally: HashMap<String, u64>,
 }
@@ -83,19 +84,23 @@ impl<S: Storage> GenService<CreatePoll> for Polls<S> {
         Ok(poll.meta.id)
     }
 }
-impl<S: Storage> GenService<RecordVote> for Polls<S> {
-    type Resp = ();
-    fn call(&mut self, req: RecordVote) -> Fallible<Self::Resp> {
+impl<S: Storage, Req> GenService<Identified<Req>> for Polls<S>
+where
+    Poll: GenService<Req>,
+{
+    type Resp = <Poll as GenService<Req>>::Resp;
+    fn call(&mut self, req: Identified<Req>) -> Fallible<Self::Resp> {
+        let Identified(poll_id, inner) = req;
         let mut poll = self
             .store
-            .load(&req.poll_id)?
-            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", req.poll_id)))?;
+            .load(&poll_id)?
+            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
 
-        poll.call(req)?;
+        let resp = poll.call(inner)?;
 
         self.store.save(&mut poll)?;
 
-        Ok(())
+        Ok(resp)
     }
 }
 
@@ -115,23 +120,9 @@ impl GenService<RecordVote> for Poll {
     }
 }
 
-impl<S: Storage> GenService<TallyVotes> for Polls<S> {
-    type Resp = VoteSummary;
-    fn call(&mut self, req: TallyVotes) -> Fallible<Self::Resp> {
-        let TallyVotes { poll_id } = req;
-        let mut poll = self
-            .store
-            .load(&req.poll_id)?
-            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", req.poll_id)))?;
-
-        let tally = poll.call(req)?;
-
-        Ok(tally)
-    }
-}
 impl GenService<TallyVotes> for Poll {
     type Resp = VoteSummary;
-    fn call(&mut self, req: TallyVotes) -> Fallible<Self::Resp> {
+    fn call(&mut self, _: TallyVotes) -> Fallible<Self::Resp> {
         let mut tally = HashMap::new();
         for v in self.votes.values().cloned() {
             *tally.entry(v).or_insert(0) += 1;

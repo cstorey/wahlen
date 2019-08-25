@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use actix_web::dev::HttpServiceFactory;
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use failure::Fallible;
 use weft::WeftRenderable;
@@ -39,32 +40,33 @@ where
     }
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         cfg.data(self.clone());
-        let scope = web::scope(PREFIX)
-            .service({ web::resource("").route(web::post().to(Self::create_poll)) })
-            .service({
-                web::resource("/{poll_id}")
-                    .name("poll")
-                    .route(web::get().to(Self::show_poll))
-            });
+        let scope = web::scope(PREFIX).service(Self::create_poll()).service({
+            web::resource("/{poll_id}")
+                .name("poll")
+                .route(web::get().to(Self::show_poll))
+        });
 
         cfg.service(scope);
     }
 
-    fn create_poll(
-        me: web::Data<Self>,
-        form: web::Form<CreatePollForm>,
-        req: HttpRequest,
-    ) -> Result<impl Responder, actix_web::Error> {
-        let mut inner = me.inner.lock().expect("unlock");
-        let result: Id<Poll> = inner.call(CreatePoll {
-            name: form.name.clone(),
-        })?;
+    fn create_poll() -> impl HttpServiceFactory + 'static {
+        fn handler<I: GenService<CreatePoll, Resp = Id<Poll>>>(
+            me: web::Data<PollsResource<I>>,
+            form: web::Form<CreatePollForm>,
+            req: HttpRequest,
+        ) -> Result<impl Responder, actix_web::Error> {
+            let mut inner = me.inner.lock().expect("unlock");
+            let result: Id<Poll> = inner.call(CreatePoll {
+                name: form.name.clone(),
+            })?;
 
-        let uri = req.url_for("poll", &[result.untyped().to_string()])?;
+            let uri = req.url_for("poll", &[result.untyped().to_string()])?;
 
-        Ok(HttpResponse::SeeOther()
-            .header("location", uri.to_string())
-            .finish())
+            Ok(HttpResponse::SeeOther()
+                .header("location", uri.to_string())
+                .finish())
+        }
+        web::resource("").route(web::post().to(handler::<I>))
     }
 
     fn show_poll(me: web::Data<Self>) -> Result<impl Responder, actix_web::Error> {

@@ -7,6 +7,8 @@ use weft::WeftRenderable;
 use weft_actix::WeftResponse;
 
 use super::*;
+use crate::WithTemplate;
+
 const PREFIX: &str = "/polls";
 
 #[derive(Debug, Clone)]
@@ -76,7 +78,7 @@ where
 impl<I: Clone + 'static> PollsResource<I> {
     fn show_poll(&self) -> impl HttpServiceFactory + 'static {
         let handler = move |_me: web::Data<Self>| -> Result<_, actix_web::Error> {
-            Ok(WeftResponse::of(PollView))
+            Ok(WeftResponse::of(WithTemplate { value: PollView }))
         };
 
         web::resource("/{poll_id}")

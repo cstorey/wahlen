@@ -47,5 +47,5 @@ struct IndexView;
 pub fn index(req: HttpRequest) -> Result<impl Responder, actix_web::Error> {
     info!("handling: {:?}", req);
 
-    Ok(WeftResponse::of(IndexView))
+    Ok(WeftResponse::of(WithTemplate { value: IndexView }))
 }

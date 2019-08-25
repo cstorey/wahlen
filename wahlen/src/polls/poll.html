@@ -1,0 +1,16 @@
+<section data-page="poll">
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Votes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr weft-for="(name, votes) in self.tally.iter()">
+        <td weft-content="name">(Name)</td>
+        <td weft-content="votes.display()">(Count)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

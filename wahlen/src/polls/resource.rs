@@ -8,6 +8,7 @@ use weft_actix::WeftResponse;
 
 use super::*;
 use crate::WithTemplate;
+use infra::untyped_ids::UntypedId;
 
 const PREFIX: &str = "/polls";
 
@@ -23,7 +24,9 @@ struct CreatePollForm {
 
 #[derive(Debug, WeftRenderable)]
 #[template(path = "src/polls/poll.html")]
-struct PollView;
+struct PollView {
+    tally: HashMap<String, u64>,
+}
 
 impl<S: Clone + Storage + 'static> PollsResource<Polls<S>> {
     pub fn new(idgen: IdGen, store: S) -> Fallible<Self> {
@@ -79,10 +82,21 @@ where
     }
 }
 
-impl<I: Clone + 'static> PollsResource<I> {
+impl<I: Clone + 'static> PollsResource<I>
+where
+    I: GenService<Identified<TallyVotes>, Resp = VoteSummary>,
+{
     fn show_poll(&self) -> impl HttpServiceFactory + 'static {
-        let handler = move |_me: web::Data<Self>| -> Result<_, actix_web::Error> {
-            Ok(WeftResponse::of(WithTemplate { value: PollView }))
+        let me = self.clone();
+        let handler = move |id: web::Path<UntypedId>| -> Result<_, actix_web::Error> {
+            let id = id.typed();
+            let VoteSummary { tally } = {
+                let mut inner = me.inner.lock().expect("unlock");
+                inner.call(Identified(id, TallyVotes))?
+            };
+
+            let view = PollView { tally };
+            Ok(WeftResponse::of(WithTemplate { value: view }))
         };
 
         web::resource("/{poll_id}")
@@ -96,11 +110,12 @@ mod tests {
     use actix_web::dev::Service;
     use actix_web::{test, App};
     use failure::Fallible;
-    use infra::untyped_ids::UntypedId;
+    use maplit::hashmap;
     use serde_urlencoded;
     use url::Url;
 
     use super::*;
+    use infra::untyped_ids::UntypedId;
 
     #[test]
     fn redirect_on_new() -> Fallible<()> {
@@ -153,6 +168,47 @@ mod tests {
             format!("{}/{}", PREFIX, UntypedId::hashed(name))
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn should_show_tally_on_get() -> Fallible<()> {
+        #[derive(Clone)]
+        struct Stub;
+        impl GenService<Identified<TallyVotes>> for Stub {
+            type Resp = VoteSummary;
+            fn call(&mut self, req: Identified<TallyVotes>) -> Fallible<Self::Resp> {
+                let Identified(id, _) = req;
+                assert_eq!(id, Id::hashed("Bob"));
+
+                let tally = hashmap! {
+                    "Pancakes".into() => 23413,
+                };
+                Ok(VoteSummary { tally })
+            }
+        }
+        let resource = PollsResource::from_inner(Stub);
+
+        let mut app = test::init_service(App::new().configure(|cfg| {
+            cfg.service(web::scope(PREFIX).service(resource.show_poll()));
+        }));
+
+        let req = test::TestRequest::get()
+            .uri(&format!("{}/{}", PREFIX, UntypedId::hashed("Bob")))
+            .to_request();
+        println!("{:?}", req);
+        let resp = test::block_on(app.call(req)).unwrap();
+        println!("→ Resp: {:?}", resp);
+
+        let status = resp.status();
+
+        let body = String::from_utf8_lossy(&test::read_body(resp)).into_owned();
+        println!("→ Body: {:?}", body);
+
+        assert_eq!(status, 200);
+
+        assert!(body.contains("Pancakes"), "Body should contain 'Pancakes'");
+        assert!(body.contains("23413"), "Body should contain '23413'");
         Ok(())
     }
 }

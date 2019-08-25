@@ -1,5 +1,10 @@
-use failure::Fallible;
+use std::collections::HashMap;
 
+use failure::Fallible;
+use serde::{Deserialize, Serialize};
+
+use infra::documents::{DocMeta, HasMeta};
+use infra::ids::Entity;
 use infra::ids::{Id, IdGen};
 use infra::persistence::Storage;
 
@@ -10,13 +15,42 @@ pub struct Polls<S> {
     idgen: IdGen,
 }
 
+#[derive(Debug)]
 pub struct CreatePoll {
     name: String,
 }
+#[derive(Debug)]
+pub struct RecordVote {
+    poll_id: Id<Poll>,
+    choice: String,
+}
+#[derive(Debug)]
+pub struct TallyVotes {
+    poll_id: Id<Poll>,
+}
+pub struct VoteSummary {
+    tally: HashMap<String, u64>,
+}
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Poll {
-    id: Id<Poll>,
+    #[serde(flatten)]
+    meta: DocMeta<Poll>,
     name: String,
+    votes: HashMap<String, u64>,
+}
+
+impl Entity for Poll {
+    const PREFIX: &'static str = "poll";
+}
+
+impl HasMeta for Poll {
+    fn meta(&self) -> &DocMeta<Self> {
+        &self.meta
+    }
+    fn meta_mut(&mut self) -> &mut DocMeta<Self> {
+        &mut self.meta
+    }
 }
 
 pub trait GenService<Req> {
@@ -32,9 +66,41 @@ impl<S> Polls<S> {
 
 impl<S: Storage> GenService<CreatePoll> for Polls<S> {
     type Resp = Id<Poll>;
-    fn call(&self, req: CreatePoll) -> Fallible<Id<Poll>> {
+    fn call(&self, req: CreatePoll) -> Fallible<Self::Resp> {
         let CreatePoll { name } = req;
-        let id = self.idgen.generate();
-        Ok(id)
+        let meta = DocMeta::new_with_id(self.idgen.generate());
+        let votes = HashMap::new();
+        let mut poll = Poll { meta, name, votes };
+        self.store.save(&mut poll)?;
+        Ok(poll.meta.id)
+    }
+}
+impl<S: Storage> GenService<RecordVote> for Polls<S> {
+    type Resp = ();
+    fn call(&self, req: RecordVote) -> Fallible<Self::Resp> {
+        let RecordVote { poll_id, choice } = req;
+        let mut poll = self
+            .store
+            .load(&poll_id)?
+            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
+
+        *poll.votes.entry(choice).or_insert(0) += 1;
+        self.store.save(&mut poll)?;
+
+        Ok(())
+    }
+}
+impl<S: Storage> GenService<TallyVotes> for Polls<S> {
+    type Resp = VoteSummary;
+    fn call(&self, req: TallyVotes) -> Fallible<Self::Resp> {
+        let TallyVotes { poll_id } = req;
+        let poll = self
+            .store
+            .load(&poll_id)?
+            .ok_or_else(|| failure::err_msg(format!("Missing vote: {}", poll_id)))?;
+
+        let tally = poll.votes;
+
+        Ok(VoteSummary { tally })
     }
 }

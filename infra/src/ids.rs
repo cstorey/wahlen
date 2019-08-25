@@ -12,7 +12,6 @@ use crate::untyped_ids::UntypedId;
 
 pub(crate) const ENCODED_BARE_ID_LEN: usize = 26;
 
-#[derive(Debug)]
 pub struct Id<T> {
     // Unix time in ms
     inner: UntypedId,
@@ -95,6 +94,12 @@ impl<T: Entity> fmt::Display for Id<T> {
             String::from_utf8_lossy(&buf[..])
         )?;
         Ok(())
+    }
+}
+
+impl<T> fmt::Debug for Id<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("Id").field(&self.inner).finish()
     }
 }
 

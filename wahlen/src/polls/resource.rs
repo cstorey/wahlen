@@ -46,7 +46,12 @@ where
 
         cfg.service(scope);
     }
+}
 
+impl<I: Clone + 'static> PollsResource<I>
+where
+    I: GenService<CreatePoll, Resp = Id<Poll>>,
+{
     fn create_poll() -> impl HttpServiceFactory + 'static {
         fn handler<I: GenService<CreatePoll, Resp = Id<Poll>>>(
             me: web::Data<PollsResource<I>>,
@@ -66,7 +71,9 @@ where
         }
         web::resource("").route(web::post().to(handler::<I>))
     }
+}
 
+impl<I: Clone + 'static> PollsResource<I> {
     fn show_poll() -> impl HttpServiceFactory + 'static {
         fn handler<Me>(me: web::Data<Me>) -> Result<impl Responder, actix_web::Error> {
             Ok(WeftResponse::of(PollView))

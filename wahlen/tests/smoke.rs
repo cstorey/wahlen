@@ -20,7 +20,7 @@ struct PollsDriver {
 }
 
 #[test]
-// #[ignore]
+#[ignore]
 fn canary() -> Fallible<()> {
     let mut polls = PollsDriver::new()?;
 

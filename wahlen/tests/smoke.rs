@@ -13,24 +13,26 @@ use sulfur::{chrome, By};
 use infra::ids::*;
 use wahlen::gen_service::*;
 use wahlen::polls::*;
+use wahlen::subjects::{CreateSubject, Subject};
 
-struct PollsDriver {
+struct Driver {
     srv: TestServerRuntime,
     browser: DriverHolder,
 }
 
 #[test]
 fn canary() -> Fallible<()> {
-    let mut polls = PollsDriver::new()?;
+    env_logger::try_init().unwrap_or_default();
+    let mut polls = Driver::new()?;
 
     let _poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
     })?;
 
+    let _subject_id = polls.call(CreateSubject)?;
+
     #[cfg(todo)]
     {
-        let subject_id = unimplemented!();
-
         polls.call(Identified(
             poll_id,
             RecordVote {
@@ -52,7 +54,7 @@ fn canary() -> Fallible<()> {
 fn two_folks_can_vote() -> Fallible<()> {
     let store = pool("two_folks_can_vote")?;
     let idgen = IdGen::new();
-    let mut polls = PollsDriver::new(idgen.clone(), store);
+    let mut polls = Driver::new(idgen.clone(), store);
 
     let poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
@@ -88,7 +90,7 @@ fn two_folks_can_vote() -> Fallible<()> {
 fn two_voting_twice_changes_vote() -> Fallible<()> {
     let store = pool("two_voting_twice_changes_vote")?;
     let idgen = IdGen::new();
-    let mut polls = PollsDriver::new(idgen.clone(), store);
+    let mut polls = Driver::new(idgen.clone(), store);
 
     let poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
@@ -118,7 +120,7 @@ fn two_voting_twice_changes_vote() -> Fallible<()> {
     Ok(())
 }
 
-impl PollsDriver {
+impl Driver {
     fn new() -> Fallible<Self> {
         let mut config = wahlen::config::Config::default();
         config.postgres.url = env::var("POSTGRES_URL").context("$POSTGRES_URL")?;
@@ -134,15 +136,13 @@ impl PollsDriver {
 
         let config = chrome::Config::default();
         let browser = sulfur::chrome::start(&config)?;
-        Ok(PollsDriver { srv, browser })
+        Ok(Driver { srv, browser })
     }
 }
 
-impl GenService<CreatePoll> for PollsDriver {
+impl GenService<CreatePoll> for Driver {
     type Resp = Id<Poll>;
     fn call(&mut self, req: CreatePoll) -> Fallible<Self::Resp> {
-        env_logger::try_init().unwrap_or_default();
-
         let url = format!("http://{}/", self.srv.addr());
         self.browser.visit(&url)?;
 
@@ -188,7 +188,43 @@ impl GenService<CreatePoll> for PollsDriver {
         Ok(Id::from_str(&poll_id)?)
     }
 }
-impl<Req> GenService<Identified<Req>> for PollsDriver
+
+impl GenService<CreateSubject> for Driver {
+    type Resp = Id<Subject>;
+    fn call(&mut self, _: CreateSubject) -> Fallible<Self::Resp> {
+        let url = format!("http://{}/", self.srv.addr());
+        self.browser.visit(&url)?;
+
+        let meta = self.browser.find_element(&By::css("*[data-page]"))?;
+        let page_name = self
+            .browser
+            .attribute(&meta, "data-page")?
+            .ok_or_else(|| failure::err_msg("Expected 'data-page' atttribute"))?;
+        assert_eq!(page_name, "top");
+
+        let button = self
+            .browser
+            .find_element(&By::css("*[data-job='create-subject']"))?;
+        self.browser.click(&button)?;
+        eprintln!("Clicked button");
+
+        let meta = self.browser.find_element(&By::css("*[data-page]"))?;
+        let page_name = self
+            .browser
+            .attribute(&meta, "data-page")?
+            .ok_or_else(|| failure::err_msg("Expected 'data-page' atttribute"))?;
+        assert_eq!(page_name, "subject");
+
+        let subject_id = self
+            .browser
+            .attribute(&meta, "data-subject-id")?
+            .ok_or_else(|| failure::err_msg("Expected 'data-subject-id' attribute"))?;
+
+        Ok(Id::from_str(&subject_id)?)
+    }
+}
+
+impl<Req> GenService<Identified<Req>> for Driver
 where
     Poll: GenService<Req>,
 {

@@ -11,6 +11,7 @@ use infra::persistence::DocumentConnectionManager;
 pub mod config;
 pub mod gen_service;
 pub mod polls;
+pub mod subjects;
 mod testing;
 
 #[derive(Debug, WeftRenderable)]
@@ -22,6 +23,7 @@ pub struct WithTemplate<C> {
 #[derive(Clone)]
 pub struct Wahlen {
     polls: polls::PollsResource<polls::Polls<Pool<DocumentConnectionManager>>>,
+    subjects: subjects::Resource<subjects::Subjects<Pool<DocumentConnectionManager>>>,
 }
 
 impl Wahlen {
@@ -30,14 +32,16 @@ impl Wahlen {
 
         store.get()?.setup().context("Setup Db")?;
         let idgen = IdGen::new();
-        let polls = polls::PollsResource::new(idgen, store)?;
+        let polls = polls::PollsResource::new(idgen.clone(), store.clone())?;
+        let subjects = subjects::Resource::new(idgen, store)?;
 
-        Ok(Wahlen { polls })
+        Ok(Wahlen { polls, subjects })
     }
 
     pub fn configure(&self, cfg: &mut web::ServiceConfig) {
         cfg.service(web::resource("/").route(web::get().to_async(index)));
         self.polls.configure(cfg);
+        self.subjects.configure(cfg);
     }
 }
 

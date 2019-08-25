@@ -2,9 +2,7 @@ use actix_web::dev::HttpServiceFactory;
 use actix_web::{http, web, HttpMessage, HttpRequest, HttpResponse};
 use failure::Fallible;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use weft::WeftRenderable;
-use weft_actix::WeftResponse;
 
 use super::*;
 use crate::WithTemplate;
@@ -14,7 +12,7 @@ const COOKIE_NAME: &str = "subject_id";
 
 #[derive(Debug, Clone)]
 pub struct Resource<I> {
-    inner: Arc<Mutex<I>>,
+    inner: I,
 }
 
 impl<S: Clone + Storage + 'static> Resource<Subjects<S>> {
@@ -26,7 +24,6 @@ impl<S: Clone + Storage + 'static> Resource<Subjects<S>> {
 
 impl<I: Clone + 'static> Resource<I> {
     pub fn from_inner(inner: I) -> Self {
-        let inner = Arc::new(Mutex::new(inner));
         Resource { inner }
     }
 }
@@ -59,7 +56,7 @@ where
             {
                 id
             } else {
-                let mut inner = me.inner.lock().expect("unlock");
+                let mut inner = me.inner.clone();
                 inner.call(CreateSubject)?
             };
 

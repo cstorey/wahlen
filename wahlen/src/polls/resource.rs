@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use actix_web::dev::HttpServiceFactory;
 use actix_web::{web, HttpRequest, HttpResponse};
 use failure::Fallible;
@@ -14,7 +12,7 @@ const PREFIX: &str = "/polls";
 
 #[derive(Debug, Clone)]
 pub struct PollsResource<I> {
-    inner: Arc<Mutex<I>>,
+    inner: I,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +37,6 @@ impl<S: Clone + Storage + 'static> PollsResource<Polls<S>> {
 
 impl<I: Clone + 'static> PollsResource<I> {
     pub fn from_inner(inner: I) -> Self {
-        let inner = Arc::new(Mutex::new(inner));
         PollsResource { inner }
     }
 }
@@ -69,7 +66,7 @@ where
             HttpRequest,
         )|
          -> Result<_, actix_web::Error> {
-            let mut inner = me.inner.lock().expect("unlock");
+            let mut inner = me.inner.clone();
             let result: Id<Poll> = inner.call(CreatePoll {
                 name: form.name.clone(),
             })?;
@@ -93,7 +90,7 @@ where
         let handler = move |id: web::Path<UntypedId>| -> Result<_, actix_web::Error> {
             let poll_id = id.typed();
             let VoteSummary { name, tally } = {
-                let mut inner = me.inner.lock().expect("unlock");
+                let mut inner = me.inner.clone();
                 inner.call(Identified(poll_id, TallyVotes))?
             };
 

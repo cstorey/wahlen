@@ -114,6 +114,10 @@ impl Documents {
             Ok(None)
         }
     }
+
+    pub fn get_ref(&self) -> &postgres::Connection {
+        &self.connection
+    }
 }
 
 impl Storage for Documents {
@@ -204,6 +208,40 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct UseSchema(pub String);
+
+impl r2d2::CustomizeConnection<Documents, postgres::Error> for UseSchema {
+    fn on_acquire(&self, conn: &mut Documents) -> Result<(), postgres::Error> {
+        loop {
+            let t = conn.connection.transaction()?;
+            let nschemas: i64 = {
+                let rows = t.query(
+                    "SELECT count(*) from pg_catalog.pg_namespace n where n.nspname = $1",
+                    &[&self.0],
+                )?;
+                let row = rows.get(0);
+                row.get(0)
+            };
+            debug!("Number of {} schemas:{}", self.0, nschemas);
+            if nschemas == 0 {
+                match t.execute(&format!("CREATE SCHEMA \"{}\"", self.0), &[]) {
+                    Ok(_) => {
+                        t.commit()?;
+                        break;
+                    }
+                    Err(e) => warn!("Error creating schema:{:?}: {:?}", self.0, e),
+                }
+            } else {
+                break;
+            }
+        }
+        conn.connection
+            .execute(&format!("SET search_path TO \"{}\"", self.0), &[])?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -221,40 +259,6 @@ mod test {
         static ref IDGEN: ids::IdGen = ids::IdGen::new();
     }
 
-    #[derive(Debug)]
-    struct UseTempSchema(String);
-
-    impl r2d2::CustomizeConnection<Documents, postgres::Error> for UseTempSchema {
-        fn on_acquire(&self, conn: &mut Documents) -> Result<(), postgres::Error> {
-            loop {
-                let t = conn.connection.transaction()?;
-                let nschemas: i64 = {
-                    let rows = t.query(
-                        "SELECT count(*) from pg_catalog.pg_namespace n where n.nspname = $1",
-                        &[&self.0],
-                    )?;
-                    let row = rows.get(0);
-                    row.get(0)
-                };
-                debug!("Number of {} schemas:{}", self.0, nschemas);
-                if nschemas == 0 {
-                    match t.execute(&format!("CREATE SCHEMA \"{}\"", self.0), &[]) {
-                        Ok(_) => {
-                            t.commit()?;
-                            break;
-                        }
-                        Err(e) => warn!("Error creating schema:{:?}: {:?}", self.0, e),
-                    }
-                } else {
-                    break;
-                }
-            }
-            conn.connection
-                .execute(&format!("SET search_path TO \"{}\"", self.0), &[])?;
-            Ok(())
-        }
-    }
-
     fn pool(schema: &str) -> Result<Pool<DocumentConnectionManager>, Error> {
         debug!("Build pool for {}", schema);
         let url = env::var("POSTGRES_URL").context("$POSTGRES_URL")?;
@@ -262,7 +266,7 @@ mod test {
         let manager = PostgresConnectionManager::new(&*url, TlsMode::None).expect("postgres");
         let pool = r2d2::Pool::builder()
             .max_size(2)
-            .connection_customizer(Box::new(UseTempSchema(schema.to_string())))
+            .connection_customizer(Box::new(UseSchema(schema.to_string())))
             .build(DocumentConnectionManager(manager))?;
 
         let conn = pool.get()?;

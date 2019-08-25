@@ -5,6 +5,8 @@ use weft_actix::WeftResponse;
 use weft_derive::WeftRenderable;
 
 pub mod config;
+pub mod polls;
+mod testing;
 
 #[derive(Debug, WeftRenderable)]
 #[template(path = "src/base.html")]

@@ -25,6 +25,7 @@ struct CreatePollForm {
 #[derive(Debug, WeftRenderable)]
 #[template(path = "src/polls/poll.html")]
 struct PollView {
+    poll_id: Id<Poll>,
     tally: HashMap<String, u64>,
 }
 
@@ -89,13 +90,13 @@ where
     fn show_poll(&self) -> impl HttpServiceFactory + 'static {
         let me = self.clone();
         let handler = move |id: web::Path<UntypedId>| -> Result<_, actix_web::Error> {
-            let id = id.typed();
+            let poll_id = id.typed();
             let VoteSummary { tally } = {
                 let mut inner = me.inner.lock().expect("unlock");
-                inner.call(Identified(id, TallyVotes))?
+                inner.call(Identified(poll_id, TallyVotes))?
             };
 
-            let view = PollView { tally };
+            let view = PollView { poll_id, tally };
             Ok(WeftResponse::of(WithTemplate { value: view }))
         };
 

@@ -20,7 +20,6 @@ struct PollsDriver {
 }
 
 #[test]
-#[ignore]
 fn canary() -> Fallible<()> {
     let mut polls = PollsDriver::new()?;
 
@@ -28,19 +27,22 @@ fn canary() -> Fallible<()> {
         name: "Canary Poll".into(),
     })?;
 
-    let subject_id = unimplemented!();
+    #[cfg(todo)]
+    {
+        let subject_id = unimplemented!();
 
-    polls.call(Identified(
-        poll_id,
-        RecordVote {
-            subject_id,
-            choice: "Banana".into(),
-        },
-    ))?;
+        polls.call(Identified(
+            poll_id,
+            RecordVote {
+                subject_id,
+                choice: "Banana".into(),
+            },
+        ))?;
 
-    let results = polls.call(Identified(poll_id, TallyVotes))?;
+        let results = polls.call(Identified(poll_id, TallyVotes))?;
 
-    assert_eq!(results.tally, hashmap! {"Banana".into() => 1});
+        assert_eq!(results.tally, hashmap! {"Banana".into() => 1});
+    }
 
     Ok(())
 }
@@ -169,7 +171,7 @@ impl GenService<CreatePoll> for PollsDriver {
         assert_eq!(page_name, "poll");
         let poll_id = self
             .browser
-            .attribute(&meta, "data-page")?
+            .attribute(&meta, "data-poll-id")?
             .ok_or_else(|| failure::err_msg("Expected 'data-page' atttribute"))?;
 
         Ok(Id::from_str(&poll_id)?)

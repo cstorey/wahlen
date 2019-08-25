@@ -26,6 +26,7 @@ struct CreatePollForm {
 #[template(path = "src/polls/poll.html")]
 struct PollView {
     poll_id: Id<Poll>,
+    name: String,
     tally: HashMap<String, u64>,
 }
 
@@ -91,12 +92,16 @@ where
         let me = self.clone();
         let handler = move |id: web::Path<UntypedId>| -> Result<_, actix_web::Error> {
             let poll_id = id.typed();
-            let VoteSummary { tally } = {
+            let VoteSummary { name, tally } = {
                 let mut inner = me.inner.lock().expect("unlock");
                 inner.call(Identified(poll_id, TallyVotes))?
             };
 
-            let view = PollView { poll_id, tally };
+            let view = PollView {
+                poll_id,
+                name,
+                tally,
+            };
             Ok(WeftResponse::of(WithTemplate { value: view }))
         };
 
@@ -185,7 +190,8 @@ mod tests {
                 let tally = hashmap! {
                     "Pancakes".into() => 23413,
                 };
-                Ok(VoteSummary { tally })
+                let name = "Bob".into();
+                Ok(VoteSummary { name, tally })
             }
         }
         let resource = PollsResource::from_inner(Stub);

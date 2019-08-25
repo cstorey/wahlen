@@ -35,6 +35,7 @@ pub struct RecordVote {
 pub struct TallyVotes;
 
 pub struct VoteSummary {
+    name: String,
     pub tally: HashMap<String, u64>,
 }
 
@@ -132,6 +133,8 @@ impl GenService<TallyVotes> for Poll {
             *tally.entry(v).or_insert(0) += 1;
         }
 
-        Ok(VoteSummary { tally })
+        let name = self.name.clone();
+
+        Ok(VoteSummary { name, tally })
     }
 }

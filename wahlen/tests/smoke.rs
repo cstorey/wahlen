@@ -7,7 +7,6 @@ use actix_http_test::{TestServer, TestServerRuntime};
 use actix_web::middleware::Logger;
 use actix_web::App;
 use failure::{Fallible, ResultExt};
-use maplit::*;
 use sulfur::*;
 use sulfur::{chrome, By};
 
@@ -23,7 +22,7 @@ struct PollsDriver {
 fn canary() -> Fallible<()> {
     let mut polls = PollsDriver::new()?;
 
-    let poll_id = polls.call(CreatePoll {
+    let _poll_id = polls.call(CreatePoll {
         name: "Canary Poll".into(),
     })?;
 
@@ -146,8 +145,6 @@ impl GenService<CreatePoll> for PollsDriver {
         let url = format!("http://{}/", self.srv.addr());
         self.browser.visit(&url)?;
 
-        eprintln!("Visited: {}", url);
-        std::thread::sleep_ms(1000);
         let meta = self.browser.find_element(&By::css("*[data-page]"))?;
         let page_name = self
             .browser
@@ -156,12 +153,16 @@ impl GenService<CreatePoll> for PollsDriver {
         assert_eq!(page_name, "top");
 
         eprintln!("Creating poll");
+        let poll_name_elt = self
+            .browser
+            .find_element(&By::css("input[data-poll-name]"))?;
+        self.browser.send_keys(&poll_name_elt, &req.name)?;
+
         let button = self
             .browser
             .find_element(&By::css("*[data-job='create-poll']"))?;
         self.browser.click(&button)?;
         eprintln!("Clicked button");
-        std::thread::sleep_ms(1000);
 
         let meta = self.browser.find_element(&By::css("*[data-page]"))?;
         let page_name = self
@@ -172,7 +173,16 @@ impl GenService<CreatePoll> for PollsDriver {
         let poll_id = self
             .browser
             .attribute(&meta, "data-poll-id")?
-            .ok_or_else(|| failure::err_msg("Expected 'data-page' atttribute"))?;
+            .ok_or_else(|| failure::err_msg("Expected 'data-page' attribute"))?;
+
+        let poll_name_elt = self.browser.find_element(&By::css("*[data-poll-name]"))?;
+        let text = self.browser.text(&poll_name_elt)?;
+        assert!(
+            text.contains(&req.name),
+            "Page name text {:?} should contain passed {:?}",
+            text,
+            req.name
+        );
 
         Ok(Id::from_str(&poll_id)?)
     }
@@ -182,7 +192,7 @@ where
     Poll: GenService<Req>,
 {
     type Resp = <Poll as GenService<Req>>::Resp;
-    fn call(&mut self, req: Identified<Req>) -> Fallible<Self::Resp> {
+    fn call(&mut self, _req: Identified<Req>) -> Fallible<Self::Resp> {
         unimplemented!()
     }
 }

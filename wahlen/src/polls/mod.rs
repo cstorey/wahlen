@@ -9,6 +9,7 @@ use infra::ids::{Id, IdGen};
 use infra::persistence::Storage;
 
 use crate::gen_service::*;
+use crate::subjects::Subject;
 
 mod resource;
 mod tests;
@@ -60,13 +61,6 @@ impl HasMeta for Poll {
     fn meta_mut(&mut self) -> &mut DocMeta<Self> {
         &mut self.meta
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Subject;
-
-impl Entity for Subject {
-    const PREFIX: &'static str = "subject";
 }
 
 impl<S> Polls<S> {

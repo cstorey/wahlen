@@ -14,7 +14,7 @@ use crate::ids::{Entity, Id};
 
 pub trait Storage {
     fn load<D: DeserializeOwned + Entity>(&self, id: &Id<D>) -> Result<Option<D>, Error>;
-    fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error>;
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error>;
 }
 
 #[derive(Fail, Debug, PartialEq, Eq)]
@@ -65,7 +65,7 @@ impl Documents {
         Ok(())
     }
 
-    pub fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error> {
+    pub fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
         let t = self.connection.transaction()?;
         let current_version = document.meta().version.clone();
 
@@ -121,7 +121,7 @@ impl Storage for Documents {
         Documents::load(self, id)
     }
 
-    fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error> {
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
         Documents::save(self, document)
     }
 }
@@ -291,7 +291,7 @@ mod test {
     impl Entity for ADocument {
         const PREFIX: &'static str = "adocument";
     }
-    impl HasMeta<ADocument> for ADocument {
+    impl HasMeta for ADocument {
         fn meta(&self) -> &DocMeta<Self> {
             &self.meta
         }
@@ -525,7 +525,7 @@ mod test {
     impl Entity for ChattyDoc {
         const PREFIX: &'static str = "chatty";
     }
-    impl HasMeta<ChattyDoc> for ChattyDoc {
+    impl HasMeta for ChattyDoc {
         fn meta(&self) -> &DocMeta<Self> {
             &self.meta
         }

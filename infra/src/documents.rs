@@ -21,9 +21,13 @@ pub struct DocMeta<T> {
     pub _phantom: PhantomData<T>,
 }
 
-pub trait HasMeta<T> {
-    fn meta(&self) -> &DocMeta<T>;
-    fn meta_mut(&mut self) -> &mut DocMeta<T>;
+pub trait HasMeta {
+    fn meta(&self) -> &DocMeta<Self>
+    where
+        Self: Sized;
+    fn meta_mut(&mut self) -> &mut DocMeta<Self>
+    where
+        Self: Sized;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

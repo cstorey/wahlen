@@ -40,7 +40,7 @@ fn main() -> Fallible<()> {
                 let stamp: DateTime<Utc> = id.timestamp().into();
                 let random = id.random();
                 println!(
-                    "t:{}; r:{}",
+                    "t:{}; r:0x{:0>16x}",
                     stamp.to_rfc3339_opts(SecondsFormat::Nanos, true),
                     random
                 );

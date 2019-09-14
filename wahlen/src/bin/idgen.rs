@@ -1,5 +1,6 @@
 use failure::Fallible;
 
+use chrono::{DateTime, SecondsFormat, Utc};
 use infra::ids::IdGen;
 use infra::untyped_ids::UntypedId;
 use structopt::StructOpt;
@@ -36,9 +37,13 @@ fn main() -> Fallible<()> {
         }
         Commands::Decompose(opt) => {
             for id in opt.ids {
-                let stamp = id.timestamp();
+                let stamp: DateTime<Utc> = id.timestamp().into();
                 let random = id.random();
-                println!("t:{:?}, r:{}", stamp, random);
+                println!(
+                    "t:{}; r:{}",
+                    stamp.to_rfc3339_opts(SecondsFormat::Nanos, true),
+                    random
+                );
             }
         }
     }

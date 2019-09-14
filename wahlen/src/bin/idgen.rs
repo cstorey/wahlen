@@ -5,13 +5,13 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "idgen", about = "Generate Identifiers")]
-struct Opt {
+struct Generate {
     #[structopt(short = "n", long = "count", default_value = "1")]
     count: usize,
 }
 
 fn main() -> Fallible<()> {
-    let opt = Opt::from_args();
+    let opt = Generate::from_args();
 
     let idgen = IdGen::new();
     for _ in 0..opt.count {

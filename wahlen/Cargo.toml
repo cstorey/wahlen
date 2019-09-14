@@ -19,6 +19,7 @@ actix = "0.8.3"
 actix-files = "0.1.4"
 toml = "0.5.3"
 structopt = "0.2.18"
+chrono = "0.4.9"
 
 [dependencies.weft]
 git = "https://github.com/cstorey/weft.git"

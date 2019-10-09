@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use data_encoding::BASE32_DNSSEC;
 use failure::{bail, Error};
@@ -62,6 +62,14 @@ impl UntypedId {
 
     pub fn typed<T>(&self) -> Id<T> {
         Id::from_untyped(*self)
+    }
+
+    pub fn timestamp(&self) -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_nanos(self.stamp)
+    }
+
+    pub fn random(&self) -> u64 {
+        self.random
     }
 }
 

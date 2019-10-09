@@ -21,6 +21,7 @@ toml = "0.5.3"
 structopt = "0.2.18"
 postgres = "0.15.2"
 maplit = "1.0.2"
+chrono = "0.4.9"
 
 [dependencies.weft]
 git = "https://github.com/cstorey/weft.git"

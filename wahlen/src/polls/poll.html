@@ -1,0 +1,17 @@
+<section data-page="poll" data-poll-id="{{ self.poll_id }}">
+  <h2 data-poll-name weft-content="{{ &self.name }}">(Poll Name)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Votes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr weft-for="(name, votes) in self.tally.iter()">
+        <td weft-content="name">(Name)</td>
+        <td weft-content="votes.display()">(Count)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

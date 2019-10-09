@@ -14,7 +14,7 @@ use crate::ids::{Entity, Id};
 
 pub trait Storage {
     fn load<D: DeserializeOwned + Entity>(&self, id: &Id<D>) -> Result<Option<D>, Error>;
-    fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error>;
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error>;
 }
 
 #[derive(Fail, Debug, PartialEq, Eq)]
@@ -65,7 +65,7 @@ impl Documents {
         Ok(())
     }
 
-    pub fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error> {
+    pub fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
         let t = self.connection.transaction()?;
         let current_version = document.meta().version.clone();
 
@@ -114,6 +114,10 @@ impl Documents {
             Ok(None)
         }
     }
+
+    pub fn get_ref(&self) -> &postgres::Connection {
+        &self.connection
+    }
 }
 
 impl Storage for Documents {
@@ -121,7 +125,7 @@ impl Storage for Documents {
         Documents::load(self, id)
     }
 
-    fn save<D: Serialize + Entity + HasMeta<D>>(&self, document: &mut D) -> Result<(), Error> {
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
         Documents::save(self, document)
     }
 }
@@ -188,6 +192,56 @@ impl<T: serde::Serialize> fmt::Debug for Jsonb<T> {
     }
 }
 
+impl<M> Storage for r2d2::Pool<M>
+where
+    M: r2d2::ManageConnection,
+    M::Connection: Storage,
+{
+    fn load<D: DeserializeOwned + Entity>(&self, id: &Id<D>) -> Result<Option<D>, Error> {
+        let conn = self.get()?;
+        conn.load(id)
+    }
+
+    fn save<D: Serialize + Entity + HasMeta>(&self, document: &mut D) -> Result<(), Error> {
+        let conn = self.get()?;
+        conn.save(document)
+    }
+}
+
+#[derive(Debug)]
+pub struct UseSchema(pub String);
+
+impl r2d2::CustomizeConnection<Documents, postgres::Error> for UseSchema {
+    fn on_acquire(&self, conn: &mut Documents) -> Result<(), postgres::Error> {
+        loop {
+            let t = conn.connection.transaction()?;
+            let nschemas: i64 = {
+                let rows = t.query(
+                    "SELECT count(*) from pg_catalog.pg_namespace n where n.nspname = $1",
+                    &[&self.0],
+                )?;
+                let row = rows.get(0);
+                row.get(0)
+            };
+            debug!("Number of {} schemas:{}", self.0, nschemas);
+            if nschemas == 0 {
+                match t.execute(&format!("CREATE SCHEMA \"{}\"", self.0), &[]) {
+                    Ok(_) => {
+                        t.commit()?;
+                        break;
+                    }
+                    Err(e) => warn!("Error creating schema:{:?}: {:?}", self.0, e),
+                }
+            } else {
+                break;
+            }
+        }
+        conn.connection
+            .execute(&format!("SET search_path TO \"{}\"", self.0), &[])?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -205,40 +259,6 @@ mod test {
         static ref IDGEN: ids::IdGen = ids::IdGen::new();
     }
 
-    #[derive(Debug)]
-    struct UseTempSchema(String);
-
-    impl r2d2::CustomizeConnection<Documents, postgres::Error> for UseTempSchema {
-        fn on_acquire(&self, conn: &mut Documents) -> Result<(), postgres::Error> {
-            loop {
-                let t = conn.connection.transaction()?;
-                let nschemas: i64 = {
-                    let rows = t.query(
-                        "SELECT count(*) from pg_catalog.pg_namespace n where n.nspname = $1",
-                        &[&self.0],
-                    )?;
-                    let row = rows.get(0);
-                    row.get(0)
-                };
-                debug!("Number of {} schemas:{}", self.0, nschemas);
-                if nschemas == 0 {
-                    match t.execute(&format!("CREATE SCHEMA \"{}\"", self.0), &[]) {
-                        Ok(_) => {
-                            t.commit()?;
-                            break;
-                        }
-                        Err(e) => warn!("Error creating schema:{:?}: {:?}", self.0, e),
-                    }
-                } else {
-                    break;
-                }
-            }
-            conn.connection
-                .execute(&format!("SET search_path TO \"{}\"", self.0), &[])?;
-            Ok(())
-        }
-    }
-
     fn pool(schema: &str) -> Result<Pool<DocumentConnectionManager>, Error> {
         debug!("Build pool for {}", schema);
         let url = env::var("POSTGRES_URL").context("$POSTGRES_URL")?;
@@ -246,7 +266,7 @@ mod test {
         let manager = PostgresConnectionManager::new(&*url, TlsMode::None).expect("postgres");
         let pool = r2d2::Pool::builder()
             .max_size(2)
-            .connection_customizer(Box::new(UseTempSchema(schema.to_string())))
+            .connection_customizer(Box::new(UseSchema(schema.to_string())))
             .build(DocumentConnectionManager(manager))?;
 
         let conn = pool.get()?;
@@ -291,7 +311,7 @@ mod test {
     impl Entity for ADocument {
         const PREFIX: &'static str = "adocument";
     }
-    impl HasMeta<ADocument> for ADocument {
+    impl HasMeta for ADocument {
         fn meta(&self) -> &DocMeta<Self> {
             &self.meta
         }
@@ -525,7 +545,7 @@ mod test {
     impl Entity for ChattyDoc {
         const PREFIX: &'static str = "chatty";
     }
-    impl HasMeta<ChattyDoc> for ChattyDoc {
+    impl HasMeta for ChattyDoc {
         fn meta(&self) -> &DocMeta<Self> {
             &self.meta
         }
@@ -630,6 +650,25 @@ mod test {
 
         assert_eq!(doc.meta.id, some_doc.meta.id);
 
+        Ok(())
+    }
+
+    #[test]
+    fn save_load_via_pool() -> Result<(), Error> {
+        env_logger::try_init().unwrap_or_default();
+        let pool = pool("save_load_via_pool")?;
+        let some_doc = ADocument {
+            meta: DocMeta::new_with_id(IDGEN.generate()),
+            name: "Dave".to_string(),
+        };
+
+        info!("Original document: {:?}", some_doc);
+
+        pool.save(&mut some_doc.clone()).expect("save");
+        let loaded = pool.load(&some_doc.meta.id).expect("load");
+        info!("Loaded document: {:?}", loaded);
+
+        assert_eq!(Some(some_doc.name), loaded.map(|d| d.name));
         Ok(())
     }
 
